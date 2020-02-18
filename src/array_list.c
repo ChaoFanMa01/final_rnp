@@ -37,6 +37,150 @@ struct ArrayList {
 
 static Status reserve(p_ArrayList, size_t);
 static Status insert(p_ArrayList, size_t, data_t);
+static Status delete(p_ArrayList, size_t, data_t *, ArrayList_free_func);
+static Status getData(p_ArrayList, size_t, data_t *);
+static Status index(p_ArrayList, data_t, size_t *, ArrayList_cmp_func);
+static Status clear(p_ArrayList, ArrayList_free_func);
+static Status min_index(p_ArrayList, size_t *, ArrayList_cmp_func);
+static Status max_index(p_ArrayList, size_t *, ArrayList_cmp_func);
+
+Status ArrayList_copy(p_ArrayList src, p_ArrayList *cpy,
+                      ArrayList_copy_func func)
+{
+  int i;
+
+  assert(src);
+  assert(cpy);
+
+  if (!(*cpy = (p_ArrayList)malloc(sizeof(ArrayList))))
+    err_return("ArrayList_copy: memory error");
+  if (!((*cpy)->base = (data_t *)malloc(sizeof(data_t) * src->capacity)))
+    err_return("ArrayList_copy: memory error");
+ 
+  for (i = 0; i < src->length; ++i)
+    if (func)
+      func(*(src->base + i), (*cpy)->base + i);
+    else
+      *((*cpy)->base + i) = *(src->base + i);
+  (*cpy)->length = src->length;
+  (*cpy)->capacity = src->capacity;
+  return OK;
+}
+
+Status ArrayList_minIndex(p_ArrayList pl, size_t *pi,
+                          ArrayList_cmp_func cmp)
+{
+  return min_index(pl, pi, cmp);
+}
+
+Status ArrayList_maxIndex(p_ArrayList pl, size_t * pi,
+                          ArrayList_cmp_func cmp)
+{
+  return max_index(pl, pi, cmp);
+}
+
+Status ArrayList_minData(p_ArrayList pl, data_t *pe, 
+                         ArrayList_cmp_func cmp)
+{
+  size_t  i;
+
+  if (min_index(pl, &i, cmp) == OK) {
+    *pe = *(pl->base + i);
+    return OK;
+  }
+  return ERROR;
+}
+
+Status ArrayList_maxData(p_ArrayList pl, data_t *pe, 
+                         ArrayList_cmp_func cmp)
+{
+  size_t  i;
+
+  if (max_index(pl, &i, cmp) == OK) {
+    *pe = *(pl->base + i);
+    return OK;
+  }
+}
+
+Status ArrayList_clear(p_ArrayList pl, ArrayList_free_func func)
+{
+  return clear(pl, func);
+}
+
+Status ArrayList_destroy(p_ArrayList *pl, ArrayList_free_func func)
+{
+  assert(pl);
+  clear(*pl, func);
+  free(*pl);
+  *pl = NULL;
+  return OK;
+}
+
+Bool ArrayList_isContain(p_ArrayList pl, data_t data,
+                         ArrayList_cmp_func cmp)
+{
+  size_t    i;
+  if (index(pl, data, &i, cmp) == OK)
+    return TRUE;
+  return FALSE;
+}
+
+Status ArrayList_index(p_ArrayList pl, data_t data, 
+                       size_t *pi, ArrayList_cmp_func cmp)
+{
+  return index(pl, data, pi, cmp);
+}
+
+Status ArrayList_replace(p_ArrayList pl, size_t index, data_t data,
+                         ArrayList_free_func func)
+{
+  assert(pl);
+  if (index < 0 || index >= pl->length)
+    return ERROR;
+  if (func)
+    func(*(pl->base + index));
+  *(pl->base + index) = data;
+  return OK;
+}
+
+Status ArrayList_getData(p_ArrayList pl, size_t index, data_t *pe)
+{
+  return getData(pl, index, pe);
+}
+
+Status ArrayList_getFrontData(p_ArrayList pl, data_t *pe)
+{
+  return getData(pl, 0, pe);
+}
+
+Status ArrayList_getBackData(p_ArrayList pl, data_t *pe)
+{
+  return getData(pl, ArrayList_length(pl) - 1, pe);
+}
+
+Bool ArrayList_isEmpty(p_ArrayList pl)
+{
+  assert(pl);
+  return pl->length <= 0;
+}
+
+Status ArrayList_delete(p_ArrayList pl, size_t index, data_t *pe,
+                        ArrayList_free_func func)
+{
+  return delete(pl, index, pe, func);
+}
+
+Status ArrayList_deleteFront(p_ArrayList pl, data_t *pe,
+                             ArrayList_free_func func)
+{
+  return delete(pl, 0, pe, func);
+}
+
+Status ArrayList_deleteBack(p_ArrayList pl, data_t *pe,
+                            ArrayList_free_func func)
+{
+  return delete(pl, pl->length - 1, pe, func);
+}
 
 size_t ArrayList_length(p_ArrayList pl)
 {
@@ -54,6 +198,10 @@ void ArrayList_map(p_ArrayList pl, size_t b,
                    size_t e, ArrayList_map_func func)
 {
   int i;
+
+  assert(pl);
+  if (pl->length <= 0)
+    return;
 
   assert(b <= e);
   assert(b >= 0);
@@ -106,8 +254,7 @@ static Status reserve(p_ArrayList pl, size_t n)
   data_t   *new_base;
   size_t    i;
 
-  if (!pl)
-    return ERROR;
+  assert(pl);
   if (!(new_base = (data_t *)malloc(sizeof(data_t) * pl->capacity * 2)))
     return ERROR;
 
@@ -122,6 +269,7 @@ static Status reserve(p_ArrayList pl, size_t n)
 static Status insert(p_ArrayList pl, size_t index, data_t data)
 {
   size_t   i;
+  assert(pl);
   /*
    * index == pl->lenght means inserting this data
    * at the rear of this list.
@@ -135,6 +283,96 @@ static Status insert(p_ArrayList pl, size_t index, data_t data)
     *(pl->base + i) = *(pl->base + i - 1);
   *(pl->base + i) = data;
   pl->length++;
+  return OK;
+}
+
+static Status delete(p_ArrayList pl, size_t index, data_t *pe,
+                     ArrayList_free_func func)
+{
+  int  i;
+  assert(pl);
+  if (index < 0 || index >= pl->length)
+    err_return("range error");
+  *pe = *(pl->base + index);
+  for (i = index; i < pl->length - 1; ++i) {
+    if (func)
+      func(*(pl->base + i));
+    *(pl->base + i) = *(pl->base + i + 1);
+  }
+  pl->length--;
+  return OK;
+}
+
+static Status getData(p_ArrayList pl, size_t index, data_t *pe)
+{
+  assert(pl);
+  if (pl->length <= 0)
+    return ERROR;
+  if (index < 0 || index >= pl->length)
+    return ERROR;
+
+  *pe = *(pl->base + index);
+  return OK;
+}
+
+static Status index(p_ArrayList pl, data_t data, size_t *pi,
+                    ArrayList_cmp_func cmp)
+{
+  int i;
+  assert(pl);
+  assert(pi);
+
+  for (i = 0; i < pl->length; ++i)
+    if (cmp(*(pl->base + i), data) == 0) {
+      *pi = i;
+      return OK;
+    }
+  return ERROR;
+}
+
+static Status clear(p_ArrayList pl, ArrayList_free_func func)
+{
+  int i;
+
+  assert(pl);
+  if (func)
+    for (i = 0; i < pl->length; ++i)
+      func(*(pl->base + i));
+  pl->length = 0;
+  return OK;
+}
+
+static Status min_index(p_ArrayList pl, size_t *pi, 
+                        ArrayList_cmp_func func)
+{
+  size_t    i;
+
+  assert(pl);
+  assert(func);
+
+  if (pl->length <= 0)
+    return ERROR;
+
+  for (i = 0, *pi = 0; i < pl->length - 1; ++i)
+    if (func(*(pl->base + *pi), *(pl->base + i + 1)) > 0)
+      *pi = i + 1;
+  return OK;
+}
+
+static Status max_index(p_ArrayList pl, size_t *pi, 
+                        ArrayList_cmp_func func)
+{
+  size_t    i;
+
+  assert(pl);
+  assert(func);
+
+  if (pl->length <= 0)
+    return ERROR;
+
+  for (i = 0, *pi = 0; i < pl->length - 1; ++i)
+    if (func(*(pl->base + *pi), *(pl->base + i + 1)) < 0)
+      *pi = i + 1;
   return OK;
 }
 
