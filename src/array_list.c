@@ -337,7 +337,7 @@ static Status clear(p_ArrayList pl, ArrayList_free_func func)
   assert(pl);
   if (func)
     for (i = 0; i < pl->length; ++i)
-      func(*(pl->base + i));
+      func(pl->base + i);
   pl->length = 0;
   return OK;
 }

@@ -24,6 +24,20 @@
 #include <stdio.h>
 #include <errno.h>
 
+/*
+ * These two macros identifying a square deployment field:
+ *
+ *                          O-------------O    <--- upper right corner
+ *                          |             |
+ *                          |             |
+ *                          |             |
+ *                          |             |
+ *                          |             |
+ * lower left corner --->   O-------------O
+ */
+#define   UPPER_RIGHT     1000
+#define   LOWER_LEFT      0
+
 #define print_msg(str, var...) (printf(str "\n", ## var))
 #define print_err(error) (printf("%s" "\n", strerror(error)))
 #define err_exit(str, err_code) ({\
